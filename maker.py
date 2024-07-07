@@ -156,6 +156,6 @@ def createEPub(json_path):
     book.spine = ['nav'] + [f'page_{i}' for i in range(1, len(epub_data["book_pages"])+1)]
 
     # Write to the file
-    epub.write_epub('demo_book.epub', book, {})
+    epub.write_epub('out/demo_book.epub', book, {})
     
 createEPub('json/2_readable.json')
