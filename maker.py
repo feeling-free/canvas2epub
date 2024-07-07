@@ -148,7 +148,7 @@ def createEPub(json_path):
     style = 'body {position: relative;}'
 
     # Add CSS to the book
-    nav_css = epub.EpubItem(uid="style_nav", file_name="s   tyle/nav.css", media_type="text/css", content=style)
+    nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css", content=style)
     book.add_item(nav_css)
 
     # Define CSS for all spine documents
