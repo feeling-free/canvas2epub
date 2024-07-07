@@ -1,27 +1,161 @@
 from ebooklib import epub
+import json
+import os
+from urllib.parse import urlparse
 
+def getImageSrc(url):
+    path = urlparse(url).path
+    image_name = os.path.basename(path)
+    return f'demo/' + image_name
 
-with open('2.html', 'r', encoding='utf-8') as file:
-    html_content = file.read()
+def add_page(book, pageContent, pageName):
+    # background image
+    backImg = pageContent['backgroundImage']
+    # Example of parsing text and image positions from Fabric.js JSON
+    elements = []
+    rect_elements = []
+    image_elements = []
+    for obj in pageContent['objects']:
+        if obj["type"] == 'rect':
+            elements.append({
+                'type': 'rect',
+                'style': f"""
+                        position: absolute;
+                        left: {obj['left']}px;
+                        top: {obj['top']}px;
+                        width: {obj['width']}px;
+                        height: {obj['height']}px;
+                        overflow: hidden;
+                    """
+            })
+        elif obj['type'] == 'image':
+            img_url = getImageSrc(obj['src'])
+            image_elements.append(img_url)
+            if obj['clipPath']:
+                rect_elements.append({
+                    'type': 'image',
+                    'src': img_url,
+                    'style': f"""
+                        position: absolute;
+                        left: {obj['left'] - obj['clipPath']['left']}px;
+                        top: {obj['top'] - obj['clipPath']["top"]}px;
+                        width: {obj['width'] * obj['scaleX']}px;
+                        height: {obj['height'] * obj['scaleY']}px;
+                    """
+                })
+            else:
+                elements.append({
+                    'type': 'image',
+                    'src': img_url,
+                    'style': f"""
+                        position: absolute;
+                        left: {obj['left']}px;
+                        top: {obj['top']}px;
+                        width: {obj['width']}px;
+                        height: {obj['height']}px;
+                    """
+            })
+        elif (obj['type'] == 'text' or obj['type'] == 'textbox'):
+            elements.append({
+                'type': 'text',
+                'text': obj['text'],
+                'style': f"""
+                    position: absolute;
+                    font-family: {obj['fontFamily']};
+                    font-size: {obj['fontSize']}px;
+                    color: {obj['fill']};
+                    left: {obj['left']}px;
+                    top: {obj['top']}px;
+                    width: {obj['width'] * obj['scaleX']}px;
+                    height: {obj['height'] * obj['scaleY']}px;
+                """
+            })
+            
+    # Add background 
+    img_url = getImageSrc(backImg["src"])
+    image_elements.append(img_url)
+    back_style = f"""
+            position: absolute;
+            left: {backImg['left']}px;
+            top: {backImg['top']}px;
+            width: {backImg['width']}px;
+            height: {backImg['height']}px;
+        """
+    html_content = f'<body><img src="{img_url}" style="{back_style}"/>'
 
-# Step 3: Create EPUB file
-book = epub.EpubBook()
-book.set_identifier('id123456')
-book.set_title('Sample Book')
-book.set_language('en')
+    # Add HTML for each element
+    for elem in elements:
+        if elem['type'] == 'rect':
+            html_content += f'<div style="{elem["style"]}">' 
+            for rect_elem in rect_elements:
+                if rect_elem['type'] == 'image':
+                    html_content += f'<img src="{rect_elem["src"]}" style="{rect_elem["style"]}"/>'
+            html_content += f'</div>'
+        elif elem['type'] == 'image':
+            html_content += f'<img style="{elem["style"]}" src="{elem["src"]}"/>'
+        elif elem['type'] == 'text':
+            html_content += f'<div style="{elem["style"]}">{elem["text"]}</div>'
 
-chapter = epub.EpubHtml(title='Chapter 1', file_name='chap_01.xhtml', lang='en')
-chapter.content = html_content
-book.add_item(chapter)
+    html_content += '</body>'
+    
+    # Add page into Book
+    page = epub.EpubHtml(title=f'Page {pageName}', file_name=f'page_{pageName}.xhtml', lang='en')
+    page.content = html_content
+    book.add_item(page)
+    
+    return image_elements
 
-book.toc = (epub.Link('chap_01.xhtml', 'Chapter 1', 'chap_01'),)
-book.add_item(epub.EpubNcx())
-book.add_item(epub.EpubNav())
+def add_img(src):
+    # create image from the local image
+    imgSource = open(src, "rb").read()
+    img = epub.EpubImage(
+        uid="image_1",
+        file_name=src,
+        media_type="image/png",
+        content=imgSource,
+    )
+    return img
 
-style = 'body { font-family: Arial, sans-serif; }'
-nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css", content=style)
-book.add_item(nav_css)
+def createEPub(json_path):
+    # Load JSON data
+    with open(json_path, 'r') as f:
+        epub_data = json.load(f)
+    
+    # Initialize the ePub book
+    book = epub.EpubBook()
 
-book.spine = ['nav', chapter]
+    # Set metadata
+    book.set_identifier('id123456') #Change the id for you
+    book.set_title('Sample Book')
+    book.set_language('en')
+    book.add_author('Author Marvin Elmore')
 
-epub.write_epub('example_book.epub', book, {})
+    # Create image_list
+    image_list = []
+    for pageData in epub_data["book_pages"]:
+        image_list.extend(add_page(book, pageData["page_content"], pageData["page_number"]))
+
+    for img_path in image_list:
+        book.add_item(add_img(img_path))
+    
+    # Define Table Of Contents
+    book.toc = tuple([epub.Link(f'page_{i}.xhtml', f'Page {i}', f'page_{i}') for i in range(1, len(epub_data["book_pages"])+1)])
+
+    # Add default NCX and Nav file
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    
+    # Define CSS style
+    style = 'body {position: relative;}'
+
+    # Add CSS to the book
+    nav_css = epub.EpubItem(uid="style_nav", file_name="s   tyle/nav.css", media_type="text/css", content=style)
+    book.add_item(nav_css)
+
+    # Define CSS for all spine documents
+    book.spine = ['nav'] + [f'page_{i}' for i in range(1, len(epub_data["book_pages"])+1)]
+
+    # Write to the file
+    epub.write_epub('demo_book.epub', book, {})
+    
+createEPub('json/2_readable.json')
