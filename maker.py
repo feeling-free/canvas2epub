@@ -102,7 +102,9 @@ def add_page(book, pageContent, pageName):
     page = epub.EpubHtml(title=f'Page {pageName}', file_name=f'page_{pageName}.xhtml', lang='en')
     page.content = html_content
     book.add_item(page)
-    
+    # Define Table Of Contents
+    book.toc.append(page)
+
     return image_elements
 
 def add_img(src):
@@ -137,9 +139,6 @@ def createEPub(json_path):
 
     for img_path in image_list:
         book.add_item(add_img(img_path))
-    
-    # Define Table Of Contents
-    book.toc = tuple([epub.Link(f'page_{i}.xhtml', f'Page {i}', f'page_{i}') for i in range(1, len(epub_data["book_pages"])+1)])
 
     # Add default NCX and Nav file
     book.add_item(epub.EpubNcx())
@@ -153,7 +152,7 @@ def createEPub(json_path):
     book.add_item(nav_css)
 
     # Define CSS for all spine documents
-    book.spine = ['nav'] + [f'page_{i}' for i in range(1, len(epub_data["book_pages"])+1)]
+    book.spine = ['nav'] + book.toc
 
     # Write to the file
     epub.write_epub('out/demo_book.epub', book, {})
