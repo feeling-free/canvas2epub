@@ -1,7 +1,7 @@
 import json
 
 # Load JSON data
-with open('json/sample_readable.json', 'r') as f:
+with open('json/2_readable.json', 'r') as f:
     epub_data = json.load(f)
 
 def get_contents(pageContent, pageName):
@@ -23,6 +23,32 @@ def get_contents(pageContent, pageName):
                         overflow: hidden;
                     """
             })
+        elif obj['type'] == 'group':
+            if obj['clipPath']:
+                rect_elements.append({
+                    'type': 'svg',
+                    'objects': obj['objects'],
+                    'width': obj['width'],
+                    'height': obj['height'],
+                    'style': f"""
+                        position: absolute;
+                        left: {obj['left'] - obj['clipPath']['left']}px;
+                        top: {obj['top'] - obj['clipPath']["top"]}px;
+                    """
+                })
+            else :
+                elements.append({
+                    'type': 'svg',
+                    'objects': obj['objects'],
+                    'width': obj['width'],
+                    'height': obj['height'],
+                    'style': f"""
+                            position: absolute;
+                            left: {obj['left']}px;
+                            top: {obj['top']}px;
+                        """
+                })
+                
         elif obj['type'] == 'image':
             if obj['clipPath']:
                 rect_elements.append({
@@ -84,9 +110,42 @@ def get_contents(pageContent, pageName):
             for rect_elem in rect_elements:
                 if rect_elem['type'] == 'image':
                     html_content += f'<img src="{rect_elem["src"]}" style="{rect_elem["style"]}"/>'
+                if rect_elem['type'] == 'svg':
+                    html_content += f'<svg height={rect_elem["height"]} width={rect_elem["width"]} style="{rect_elem["style"]}">'
+                    for ele in rect_elem['objects']:
+                        stroke = ele['stroke']
+                        fill = ele['fill']
+                        path_data = "M"
+                        stroke_width = ele['strokeWidth'] if ele['strokeWidth'] > 0 else 1
+                        for path in ele['path']:
+                            idx = 0
+                            if len(path) > 1:
+                                for pt in path:
+                                    if idx:
+                                        path_data += f" {pt}"
+                                    idx += 1
+                        html_content += f'\n<path d="{path_data}" stroke={stroke} fill="{fill}" stroke-width="{stroke_width}" />'
+                    html_content += '</svg>'
             html_content += f'</div>'
         elif elem['type'] == 'image':
             html_content += f'<img style="{elem["style"]}" src="{elem["src"]}"/>'
+        elif elem['type'] == 'svg':
+            html_content += f'<svg height={elem["height"]} width={elem["width"]} style="{elem["style"]}">'
+            for ele in elem['objects']:
+                stroke = ele['stroke']
+                fill = ele['fill']
+                path_data = "M"
+                stroke_width = ele['strokeWidth'] if ele['strokeWidth'] > 0 else 1
+                for path in ele['path']:
+                    idx = 0
+                    if len(path) > 1:
+                        for pt in path:
+                            if idx:
+                                path_data += f" {pt}"
+                            idx += 1
+                html_content += f'\n<path d="{path_data}" stroke={stroke} fill="{fill}" stroke-width="{stroke_width}" />'
+            html_content += '</svg>'
+                
         elif elem['type'] == 'text':
             html_content += f'<div style="{elem["style"]}">{elem["text"]}</div>'
 
