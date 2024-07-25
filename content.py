@@ -92,16 +92,7 @@ def get_contents(pageContent, pageName):
 
     html_content = '<!DOCTYPE html><html><head><style>'
     html_content += 'body { position: relative; }'
-    back_style = f"""
-            position: absolute;
-            left: {backImg['left']}px;
-            top: {backImg['top']}px;
-            width: {backImg['width']}px;
-            height: {backImg['height']}px;
-        """
-        
-    # Add background 
-    html_content += f'</style></head><img src="{backImg["src"]}" style="{back_style}"/>'
+    html_content += f'</style></head>'
 
     # Add HTML for each element
     for elem in elements:

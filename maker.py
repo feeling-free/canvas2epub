@@ -21,8 +21,6 @@ def downloadResource(url):
     return save_path
 
 def add_page(book, pageContent, pageName):
-    # background image
-    backImg = pageContent['backgroundImage']
     # Example of parsing text and image positions from Fabric.js JSON
     elements = []
     rect_elements = []
@@ -109,17 +107,7 @@ def add_page(book, pageContent, pageName):
                 """
             })
             
-    # Add background 
-    img_url = downloadResource(backImg["src"])
-    image_elements.append(img_url)
-    back_style = f"""
-            position: absolute;
-            left: {backImg['left']}px;
-            top: {backImg['top']}px;
-            width: {backImg['width']}px;
-            height: {backImg['height']}px;
-        """
-    html_content = f'<body><img src="{img_url}" style="{back_style}"/>'
+    html_content = '<body>'
 
     # Add HTML for each element
     for elem in elements:
