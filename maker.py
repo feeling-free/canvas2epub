@@ -2,11 +2,23 @@ from ebooklib import epub
 import json
 import os
 from urllib.parse import urlparse
+import requests
 
-def getImageSrc(url):
-    path = urlparse(url).path
-    image_name = os.path.basename(path)
-    return f'demo/' + image_name
+def downloadResource(url):
+    url = url.replace('localhost:8888/createbookstudio/site', 'createbookstudio.com')
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Check if the request was successful
+        path = urlparse(url).path
+        file_name = os.path.basename(path)
+        save_path = f'demo/{file_name}'
+        with open(save_path, 'wb') as file:
+            file.write(response.content)
+        print(f"Image saved: {save_path}")
+    except Exception as e:
+        print(f"Failed to download {url}: {e}")
+        
+    return save_path
 
 def add_page(book, pageContent, pageName):
     # background image
@@ -55,7 +67,7 @@ def add_page(book, pageContent, pageName):
                 })
                 
         elif obj['type'] == 'image':
-            img_url = getImageSrc(obj['src'])
+            img_url = downloadResource(obj['src'])
             image_elements.append(img_url)
             if obj['clipPath']:
                 rect_elements.append({
@@ -88,7 +100,7 @@ def add_page(book, pageContent, pageName):
                 'style': f"""
                     position: absolute;
                     font-family: {obj['fontFamily']};
-                    font-size: {obj['fontSize']}px;
+                    font-size: {obj['fontSize']}px!important;
                     color: {obj['fill']};
                     left: {obj['left']}px;
                     top: {obj['top']}px;
@@ -98,7 +110,7 @@ def add_page(book, pageContent, pageName):
             })
             
     # Add background 
-    img_url = getImageSrc(backImg["src"])
+    img_url = downloadResource(backImg["src"])
     image_elements.append(img_url)
     back_style = f"""
             position: absolute;
@@ -176,10 +188,14 @@ def add_img(src):
     )
     return img
 
-def createEPub(json_path):
+def createEPub(json_url):
     # Load JSON data
-    with open(json_path, 'r') as f:
-        epub_data = json.load(f)
+    try:
+        response = requests.get(json_url)
+        response.raise_for_status()  # Check if the request was successful
+        epub_data = json.loads(response.content)
+    except Exception as e:
+        print(f"Failed to load {json_url}: {e}")
     
     # Initialize the ePub book
     book = epub.EpubBook()
@@ -193,7 +209,8 @@ def createEPub(json_path):
     # Create image_list
     image_list = []
     for pageData in epub_data["book_pages"]:
-        image_list.extend(add_page(book, pageData["page_content"], pageData["page_number"]))
+        page_content = json.loads(pageData["page_content"])
+        image_list.extend(add_page(book, page_content, pageData["page_number"]))
 
     for img_path in image_list:
         book.add_item(add_img(img_path))
@@ -215,4 +232,4 @@ def createEPub(json_path):
     # Write to the file
     epub.write_epub('out/demo_book.epub', book, {})
     
-createEPub('json/2_readable.json')
+createEPub('https://createbookstudio-2-fmh57.ondigitalocean.app/book/canvas-data/2/2')
