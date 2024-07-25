@@ -81,7 +81,7 @@ def get_contents(pageContent, pageName):
                 'style': f"""
                     position: absolute;
                     font-family: {obj['fontFamily']};
-                    font-size: {obj['fontSize']};
+                    font-size: {obj['fontSize']}px;
                     color: {obj['fill']};
                     left: {obj['left']}px;
                     top: {obj['top']}px;
