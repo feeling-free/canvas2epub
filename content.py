@@ -1,15 +1,33 @@
 import json
+import os
+from urllib.parse import urlparse
+import requests
 
 # Load JSON data
 with open('json/2_readable.json', 'r') as f:
     epub_data = json.load(f)
 
+def downloadResource(url):
+    url = url.replace('localhost:8888/createbookstudio/site', 'createbookstudio.com')
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Check if the request was successful
+        path = urlparse(url).path
+        file_name = os.path.basename(path)
+        save_path = f'demo/{file_name}'
+        with open(save_path, 'wb') as file:
+            file.write(response.content)
+        print(f"Image saved: {save_path}")
+    except Exception as e:
+        print(f"Failed to download {url}: {e}")
+        
+    return "../" + save_path
+
 def get_contents(pageContent, pageName):
-    # background image
-    backImg = pageContent['backgroundImage']
     # Example of parsing text and image positions from Fabric.js JSON
     elements = []
     rect_elements = []
+    image_elements = []
     for obj in pageContent['objects']:
         if obj["type"] == 'rect':
             elements.append({
@@ -50,10 +68,12 @@ def get_contents(pageContent, pageName):
                 })
                 
         elif obj['type'] == 'image':
+            img_url = downloadResource(obj['src'])
+            image_elements.append(img_url)
             if obj['clipPath']:
                 rect_elements.append({
                     'type': 'image',
-                    'src': obj['src'],
+                    'src': img_url,
                     'style': f"""
                         position: absolute;
                         left: {obj['left'] - obj['clipPath']['left']}px;
@@ -65,7 +85,7 @@ def get_contents(pageContent, pageName):
             else:
                 elements.append({
                     'type': 'image',
-                    'src': obj['src'],
+                    'src': img_url,
                     'style': f"""
                         position: absolute;
                         left: {obj['left']}px;
@@ -81,7 +101,7 @@ def get_contents(pageContent, pageName):
                 'style': f"""
                     position: absolute;
                     font-family: {obj['fontFamily']};
-                    font-size: {obj['fontSize']}px;
+                    font-size: {obj['fontSize']}px!important;
                     color: {obj['fill']};
                     left: {obj['left']}px;
                     top: {obj['top']}px;
@@ -89,12 +109,12 @@ def get_contents(pageContent, pageName):
                     height: {obj['height'] * obj['scaleY']}px;
                 """
             })
-
+    
     html_content = '<!DOCTYPE html><html><head><style>'
     html_content += 'body { position: relative; }'
     html_content += f'</style></head>'
 
-    # Add HTML for each element
+     # Add HTML for each element
     for elem in elements:
         if elem['type'] == 'rect':
             html_content += f'<div style="{elem["style"]}">' 
@@ -136,7 +156,6 @@ def get_contents(pageContent, pageName):
                             idx += 1
                 html_content += f'\n<path d="{path_data}" stroke={stroke} fill="{fill}" stroke-width="{stroke_width}" />'
             html_content += '</svg>'
-                
         elif elem['type'] == 'text':
             html_content += f'<div style="{elem["style"]}">{elem["text"]}</div>'
 

@@ -106,7 +106,7 @@ def add_page(book, pageContent, pageName):
                     height: {obj['height'] * obj['scaleY']}px;
                 """
             })
-            
+       
     html_content = '<body>'
 
     # Add HTML for each element
