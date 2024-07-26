@@ -3,6 +3,24 @@ import json
 import os
 from urllib.parse import urlparse
 import requests
+import math
+
+def get_default_font_name(s):
+    # Split the string into words
+    words = s.split()
+
+    # Capitalize the first letter of each word
+    case_words = [words[0].capitalize()] + [word.capitalize() for word in words[1:]]
+
+    # Join the words together without spaces
+    def_name = ''.join(case_words)
+
+    return def_name
+
+def downloadFontSource(name):
+    font_name = get_default_font_name(name)
+    local_font_path = "fonts/" + font_name + '-Regular.ttf'
+    return {"src": local_font_path, "name": name}
 
 def downloadResource(url):
     url = url.replace('localhost:8888/createbookstudio/site', 'createbookstudio.com')
@@ -20,11 +38,12 @@ def downloadResource(url):
         
     return save_path
 
-def add_page(book, pageContent, pageName):
+def add_page(book, pageContent, pageName, font_names):
     # Example of parsing text and image positions from Fabric.js JSON
     elements = []
     rect_elements = []
     image_elements = []
+    fonts = []
     for obj in pageContent['objects']:
         if obj["type"] == 'rect':
             elements.append({
@@ -92,6 +111,13 @@ def add_page(book, pageContent, pageName):
                     """
             })
         elif (obj['type'] == 'text' or obj['type'] == 'textbox'):
+            if(obj['fontFamily']):
+                if(obj['fontFamily'] not in font_names):
+                    font_names.append(obj['fontFamily'])
+                    fonts.append(downloadFontSource(obj['fontFamily']))
+            width  = obj['width'] * obj['scaleX']
+            if(obj['type'] == 'text'):
+                width = math.ceil(width)
             elements.append({
                 'type': 'text',
                 'text': obj['text'],
@@ -102,13 +128,13 @@ def add_page(book, pageContent, pageName):
                     color: {obj['fill']};
                     left: {obj['left']}px;
                     top: {obj['top']}px;
-                    width: {obj['width'] * obj['scaleX']}px;
+                    width: {width}px;
                     height: {obj['height'] * obj['scaleY']}px;
                 """
             })
-       
-    html_content = '<body>'
-
+    
+    html_content = ''
+    
     # Add HTML for each element
     for elem in elements:
         if elem['type'] == 'rect':
@@ -155,6 +181,12 @@ def add_page(book, pageContent, pageName):
             html_content += f'<div style="{elem["style"]}">{elem["text"]}</div>'
 
     html_content += '</body>'
+
+    style = '''
+    <body>
+        <link rel="stylesheet" type="text/css" href="styles/style.css" />'''
+
+    html_content = style + html_content
     
     # Add page into Book
     page = epub.EpubHtml(title=f'Page {pageName}', file_name=f'page_{pageName}.xhtml', lang='en')
@@ -163,7 +195,7 @@ def add_page(book, pageContent, pageName):
     # Define Table Of Contents
     book.toc.append(page)
 
-    return image_elements
+    return {"images": image_elements, "fonts": fonts, "font_names": font_names}
 
 def add_img(src):
     # create image from the local image
@@ -177,7 +209,7 @@ def add_img(src):
     return img
 
 def createEPub(json_url):
-    # Load JSON data
+    # Load JSON data    
     try:
         response = requests.get(json_url)
         response.raise_for_status()  # Check if the request was successful
@@ -196,23 +228,36 @@ def createEPub(json_url):
 
     # Create image_list
     image_list = []
+    font_names = ['arial']
+    fonts = []
     for pageData in epub_data["book_pages"]:
         page_content = json.loads(pageData["page_content"])
-        image_list.extend(add_page(book, page_content, pageData["page_number"]))
+        resources = add_page(book, page_content, pageData["page_number"], font_names)
+        image_list.extend(resources['images'])
+        fonts.extend(resources['fonts'])
+        font_names = resources['font_names']
 
     for img_path in image_list:
         book.add_item(add_img(img_path))
+    
+    # Define CSS style
+    style = ""
+    for font in fonts:
+        with open(font['src'], 'rb') as f:
+            font_content = f.read()
+            book.add_item(epub.EpubItem(uid=font['name'], file_name=font['src'], media_type="application/x-font-ttf", content=font_content))
+        style += "@font-face{font-family:"
+        style += font["name"] + ";\n"
+        style += "src: url(../" + font["src"] + ");\n" + "}\n"
+    style += "body {position: relative;}"
+
+    # Add CSS to the book
+    nav_css = epub.EpubItem(uid="style", file_name="styles/style.css", media_type="text/css", content=style)
+    book.add_item(nav_css)
 
     # Add default NCX and Nav file
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
-    
-    # Define CSS style
-    style = 'body {position: relative;}'
-
-    # Add CSS to the book
-    nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css", content=style)
-    book.add_item(nav_css)
 
     # Define CSS for all spine documents
     book.spine = ['nav'] + book.toc

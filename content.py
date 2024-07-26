@@ -7,6 +7,23 @@ import requests
 with open('json/2_readable.json', 'r') as f:
     epub_data = json.load(f)
 
+def get_default_font_name(s):
+    # Split the string into words
+    words = s.split()
+
+    # Capitalize the first letter of each word
+    case_words = [words[0].capitalize()] + [word.capitalize() for word in words[1:]]
+
+    # Join the words together without spaces
+    def_name = ''.join(case_words)
+
+    return def_name
+
+def downloadFontSource(name):
+    font_name = get_default_font_name(name)
+    local_font_path = "../fonts/" + font_name + '-Regular.ttf'
+    return {"src": local_font_path, "name": name}
+
 def downloadResource(url):
     url = url.replace('localhost:8888/createbookstudio/site', 'createbookstudio.com')
     try:
@@ -28,6 +45,8 @@ def get_contents(pageContent, pageName):
     elements = []
     rect_elements = []
     image_elements = []
+    fonts = []
+    font_names = ['arial']
     for obj in pageContent['objects']:
         if obj["type"] == 'rect':
             elements.append({
@@ -95,6 +114,10 @@ def get_contents(pageContent, pageName):
                     """
             })
         elif (obj['type'] == 'text' or obj['type'] == 'textbox'):
+            if(obj['fontFamily']):
+                if(obj['fontFamily'] not in font_names):
+                    font_names.append(obj['fontFamily'])
+                    fonts.append(downloadFontSource(obj['fontFamily']))
             elements.append({
                 'type': 'text',
                 'text': obj['text'],
@@ -111,8 +134,14 @@ def get_contents(pageContent, pageName):
             })
     
     html_content = '<!DOCTYPE html><html><head><style>'
+    for font in fonts:
+        html_content += "@font-face{font-family:"
+        html_content += font["name"] + ";\n"
+        html_content += "src: url(" + font["src"] + ");\n" + "}\n"
+        
+
     html_content += 'body { position: relative; }'
-    html_content += f'</style></head>'
+    html_content += '</style></head>'
 
      # Add HTML for each element
     for elem in elements:
