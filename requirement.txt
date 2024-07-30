@@ -1,1 +1,1 @@
-pip install ebooklib urllib
+pip install ebooklib urllib requests json
